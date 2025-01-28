@@ -16,7 +16,6 @@ Download the latest release from the [Releases](https://github.com/kankburhan/ta
 
 ### Go Install
 You can install TakeIt directly using `go install`:
-
 ```bash
 go install github.com/kankburhan/takeit@latest
 ```
@@ -27,7 +26,6 @@ Requirements:
 - Go 1.16+
 
 Steps:
-
 ```bash
 git clone https://github.com/kankburhan/takeit.git
 cd takeit
@@ -37,7 +35,6 @@ go build -o takeit
 ## Usage
 
 ```text
-
         _____     _       _____ _   
         |_   _|   | |     |_   _| |  
           | | __ _| | _____ | | | |_ 
@@ -45,7 +42,6 @@ go build -o takeit
           | | (_| |   <  __/| |_| |_ 
           \_/\__,_|_|\_\___\___/ \__|
                         by kankburhan
-
 Usage:
   takeit [flags] <domain>
   cat domains.txt | takeit [flags]
@@ -54,6 +50,7 @@ Flags:
   -update        Update fingerprint database
   -v             Show version
   -h             Show help
+  -f             Filter output ( potential )
 ```
 
 ### Examples
@@ -71,6 +68,11 @@ Flags:
 - Update the fingerprint database:
   ```bash
   ./takeit -update
+  ```
+
+- Show only potential matches:
+  ```bash
+  ./takeit -f potential example.com
   ```
 
 ## Contributions

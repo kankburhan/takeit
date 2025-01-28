@@ -7,15 +7,16 @@ import (
 
 type Runner struct {
 	detector *detect.Detector
+	filter   string
 }
 
-func NewRunner(update bool) (*Runner, error) {
+func NewRunner(update bool, filter string) (*Runner, error) {
 	gologger.Info().Msg("Loading takeit fingerprints...")
 	detector, err := detect.NewDetector(update)
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{detector: detector}, nil
+	return &Runner{detector: detector, filter: filter}, nil
 }
 
 func (r *Runner) ProcessDomain(domain string) {
@@ -26,8 +27,12 @@ func (r *Runner) ProcessDomain(domain string) {
 		return
 	}
 	if vulnerable {
-		gologger.Warning().Msgf("Potential subdomain takeover detected: %s", domain)
+		if r.filter == "potential" {
+			gologger.Warning().Msgf("Potential subdomain takeover detected: %s", domain)
+		}
 	} else {
-		gologger.Info().Msgf("No takeover detected for: %s", domain)
+		if r.filter == "" {
+			gologger.Info().Msgf("No takeover detected for: %s", domain)
+		}
 	}
 }

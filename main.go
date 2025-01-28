@@ -11,7 +11,7 @@ import (
 	"github.com/projectdiscovery/gologger"
 )
 
-const version = "v0.1.2"
+const version = "v0.1.3"
 
 func showBanner() {
 	fmt.Print(`
@@ -34,13 +34,15 @@ func showHelp() {
 	fmt.Printf("Flags:\n")
 	fmt.Printf("  -update        Update fingerprint database\n")
 	fmt.Printf("  -v             Show version\n")
-	fmt.Printf("  -h             Show help\n\n")
+	fmt.Printf("  -h             Show help\n")
+	fmt.Printf("  -f             Filter output ( potential )\n\n")
 }
 
 func main() {
 	update := flag.Bool("update", false, "Update fingerprint database")
 	versionFlag := flag.Bool("v", false, "Show version")
 	helpFlag := flag.Bool("h", false, "Show help")
+	filterFlag := flag.String("f", "", "Filter output (e.g., potential)")
 	flag.Parse()
 
 	if *helpFlag {
@@ -62,7 +64,7 @@ func main() {
 	showBanner()
 	gologger.Info().Msgf("Current takeit version %s", version)
 
-	runner, err := runner.NewRunner(*update)
+	runner, err := runner.NewRunner(*update, *filterFlag)
 	if err != nil {
 		gologger.Fatal().Msgf("Could not create runner: %s", err)
 	}
