@@ -11,7 +11,7 @@ import (
 	"github.com/projectdiscovery/gologger"
 )
 
-const version = "v0.1.0"
+const version = "v0.1.1"
 
 func showBanner() {
 	fmt.Print(`
@@ -38,9 +38,9 @@ func showHelp() {
 }
 
 func main() {
-	update := flag.Bool("update", false, "")
-	versionFlag := flag.Bool("v", false, "")
-	helpFlag := flag.Bool("h", false, "")
+	update := flag.Bool("update", false, "Update fingerprint database")
+	versionFlag := flag.Bool("v", false, "Show version")
+	helpFlag := flag.Bool("h", false, "Show help")
 	flag.Parse()
 
 	if *helpFlag {
