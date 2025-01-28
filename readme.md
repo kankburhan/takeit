@@ -1,6 +1,6 @@
 # TakeIt
 
-TakeIt is a blazing-fast subdomain takeover detection tool. With its intuitive CLI and updatable fingerprint database, TakeIt helps security professionals identify misconfigured subdomains that could be exploited.
+TakeIt is a blazing-fast subdomain takeover detection tool inspired by [can-i-take-over-xyz](https://github.com/EdOverflow/can-i-take-over-xyz). With its intuitive CLI and updatable fingerprint database, TakeIt helps security professionals identify misconfigured subdomains that could be exploited.
 
 ## Key Features
 
