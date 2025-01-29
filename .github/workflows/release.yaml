@@ -20,7 +20,7 @@ jobs:
 
     - name: Build binary
       run: |
-        go build -o takeit
+        go build -o takeit -ldflags "-X main.version=${{ github.ref_name }}"
 
     - name: Create Release
       id: create_release

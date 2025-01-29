@@ -11,7 +11,7 @@ import (
 	"github.com/projectdiscovery/gologger"
 )
 
-const version = "v0.1.3"
+var version = "dev" // default version
 
 func showBanner() {
 	fmt.Print(`
@@ -45,6 +45,11 @@ func main() {
 	filterFlag := flag.String("f", "", "Filter output (e.g., potential)")
 	flag.Parse()
 
+	// Get version from environment variable or build flag
+	if v := os.Getenv("TAKEIT_VERSION"); v != "" {
+		version = v
+	}
+
 	if *helpFlag {
 		showHelp()
 		os.Exit(0)
@@ -64,7 +69,7 @@ func main() {
 	showBanner()
 	gologger.Info().Msgf("Current takeit version %s", version)
 
-	runner, err := runner.NewRunner(*update, *filterFlag)
+	runner, err := runner.NewRunner(*update, *filterFlag, version)
 	if err != nil {
 		gologger.Fatal().Msgf("Could not create runner: %s", err)
 	}

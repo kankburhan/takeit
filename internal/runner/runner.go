@@ -8,15 +8,16 @@ import (
 type Runner struct {
 	detector *detect.Detector
 	filter   string
+	version  string
 }
 
-func NewRunner(update bool, filter string) (*Runner, error) {
-	gologger.Info().Msg("Loading takeit fingerprints...")
+func NewRunner(update bool, filter, version string) (*Runner, error) {
+	gologger.Info().Msgf("Loading takeit fingerprints... (version: %s)", version)
 	detector, err := detect.NewDetector(update)
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{detector: detector, filter: filter}, nil
+	return &Runner{detector: detector, filter: filter, version: version}, nil
 }
 
 func (r *Runner) ProcessDomain(domain string) {
