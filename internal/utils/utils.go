@@ -1,16 +1,35 @@
 package utils
 
 import (
+	"context"
+	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
-var client = &http.Client{Timeout: 10 * time.Second}
+var (
+	httpClient     *http.Client
+	httpClientOnce sync.Once
+)
 
-func HTTPGet(url string) (*http.Response, error) {
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, err
+func InitHTTPClient(timeout time.Duration, userAgent string) {
+	// force to use DNS resolver
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 10 * time.Second}
+			return d.DialContext(ctx, "udp", "8.8.8.8:53")
+		},
 	}
-	return resp, nil
+	httpClientOnce.Do(func() {
+		httpClient = &http.Client{
+			Timeout:   timeout,
+			Transport: &http.Transport{},
+		}
+	})
+}
+
+func GetHTTPClient() *http.Client {
+	return httpClient
 }

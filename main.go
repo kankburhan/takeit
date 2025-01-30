@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/kankburhan/takeit/internal/runner"
+	"github.com/kankburhan/takeit/pkg/config"
 	"github.com/projectdiscovery/gologger"
 )
 
@@ -69,7 +70,8 @@ func main() {
 	showBanner()
 	gologger.Info().Msgf("Current takeit version %s", version)
 
-	runner, err := runner.NewRunner(*update, *filterFlag, version)
+	config := config.DefaultConfig()
+	runner, err := runner.NewRunner(*update, *filterFlag, version, config)
 	if err != nil {
 		gologger.Fatal().Msgf("Could not create runner: %s", err)
 	}
