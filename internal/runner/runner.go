@@ -23,7 +23,7 @@ func NewRunner(update bool, filter, version string) (*Runner, error) {
 func (r *Runner) ProcessDomain(domain string) {
 	gologger.Info().Msgf("Checking domain: %s", domain)
 	vulnerable, err := r.detector.CheckSubdomain(domain)
-	if err != nil {
+	if err != nil && r.filter == "" {
 		gologger.Error().Msgf("Error checking %s: %s", domain, err)
 		return
 	}
