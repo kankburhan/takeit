@@ -101,22 +101,20 @@ func loadFingerprints(path string) ([]Service, error) {
 	return services, err
 }
 
-func (d *Detector) CheckSubdomain(domain string) (bool, error) {
+func (d *Detector) CheckSubdomain(domain string) (bool, error, string) {
 	cname, err := net.LookupCNAME(domain)
 	if err != nil {
-		return false, fmt.Errorf("could not resolve CNAME for %s: %s", domain, err)
+		return false, fmt.Errorf("could not resolve CNAME for %s: %s", domain, err), cname
 	}
 	cname = strings.TrimSuffix(cname, ".")
-
-	gologger.Info().Msgf("Resolved CNAME for %s: %s", domain, cname)
 
 	for _, service := range d.services {
 		for _, pattern := range service.CNAME {
 			if strings.Contains(cname, pattern) {
 				gologger.Info().Msgf("Potential match with %s service", service.Service)
-				return true, nil
+				return true, nil, cname
 			}
 		}
 	}
-	return false, nil
+	return false, nil, cname
 }

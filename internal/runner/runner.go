@@ -21,20 +21,23 @@ func NewRunner(update bool, filter, version string) (*Runner, error) {
 }
 
 func (r *Runner) ProcessDomain(domain string) {
-	vulnerable, err := r.detector.CheckSubdomain(domain)
+	vulnerable, err, cname := r.detector.CheckSubdomain(domain)
 	if err != nil && r.filter == "" {
 		gologger.Info().Msgf("Checking domain: %s", domain)
+		gologger.Info().Msgf("Resolved CNAME for %s: %s", domain, cname)
 		gologger.Error().Msgf("Error checking %s: %s", domain, err)
 		return
 	}
 	if vulnerable {
 		if r.filter == "potential" {
 			gologger.Info().Msgf("Checking domain: %s", domain)
+			gologger.Info().Msgf("Resolved CNAME for %s: %s", domain, cname)
 			gologger.Warning().Msgf("Potential subdomain takeover detected: %s", domain)
 		}
 	} else {
 		if r.filter == "" {
 			gologger.Info().Msgf("Checking domain: %s", domain)
+			gologger.Info().Msgf("Resolved CNAME for %s: %s", domain, cname)
 			gologger.Info().Msgf("No takeover detected for: %s", domain)
 		}
 	}
