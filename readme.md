@@ -144,9 +144,3 @@ TakeIt is intended for **educational purposes** and **authorized security testin
 
 Have questions, suggestions, or just want to share your experience with TakeIt? Feel free to reach out or open an issue on GitHub. Let’s make subdomain takeover detection faster, smarter, and more accessible for everyone!
 
----
-
-### Badges Explained:
-- **[![Go Report Card](https://goreportcard.com/badge/github.com/kankburhan/takeit)](https://goreportcard.com/report/github.com/kankburhan/takeit)**: Shows the code quality and test coverage of the project.  
-- **[![GitHub license](https://img.shields.io/github/license/kankburhan/takeit)](https://github.com/kankburhan/takeit/blob/main/LICENSE)**: Indicates the project is open-source under the MIT License.  
-- **[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)**: Encourages contributors to submit pull requests.  
