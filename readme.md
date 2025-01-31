@@ -1,8 +1,8 @@
 # 🚀 TakeIt: Blazing-Fast Subdomain Takeover Detection
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/kankburhan/takeit)](https://goreportcard.com/report/github.com/kankburhan/takeit)  
-[![GitHub license](https://img.shields.io/github/license/kankburhan/takeit)](https://github.com/kankburhan/takeit/blob/main/LICENSE)  
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)  
+[![Go Report Card](https://goreportcard.com/badge/github.com/kankburhan/takeit)](https://goreportcard.com/report/github.com/kankburhan/takeit)
+[![GitHub license](https://img.shields.io/github/license/kankburhan/takeit)](https://github.com/kankburhan/takeit/blob/main/LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
 
 **TakeIt** is your go-to tool for detecting subdomain takeovers with speed and precision. Inspired by the popular [can-i-take-over-xyz](https://github.com/EdOverflow/can-i-take-over-xyz) project, TakeIt is designed to help security professionals and bug bounty hunters identify misconfigured subdomains that could be exploited. With its intuitive CLI and updatable fingerprint database, TakeIt makes subdomain takeover detection a breeze.
 
