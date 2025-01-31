@@ -1,7 +1,3 @@
-Here’s the updated `README.md` with the badges added for better visibility and engagement:
-
----
-
 # 🚀 TakeIt: Blazing-Fast Subdomain Takeover Detection
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/kankburhan/takeit)](https://goreportcard.com/report/github.com/kankburhan/takeit)  
