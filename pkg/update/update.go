@@ -68,9 +68,6 @@ func SelfUpdate(currentVersion string) error {
 	gologger.Info().Msgf("New version found: %s", release.TagName)
 	gologger.Info().Msg("Updating...")
 
-	// Attempt to use 'go install' as a simplified update mechanism
-	// This is robust provided the user has Go installed, which is likely for this tool.
-	// For a more complex binary replacement, we'd need to download the asset, chmod, and move it.
 	cmd := exec.Command("go", "install", fmt.Sprintf("github.com/%s/%s@%s", repoOwner, repoName, release.TagName))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
