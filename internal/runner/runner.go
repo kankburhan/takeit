@@ -1,24 +1,41 @@
 package runner
 
 import (
+	"sync"
+
 	"github.com/kankburhan/takeit/internal/detect"
 	"github.com/kankburhan/takeit/pkg/config"
 	"github.com/projectdiscovery/gologger"
 )
 
 type Runner struct {
-	detector *detect.Detector
-	filter   string
-	version  string
+	detector    *detect.Detector
+	filter      string
+	version     string
+	concurrency int
 }
 
-func NewRunner(update bool, filter, version string, config *config.Config) (*Runner, error) {
+func NewRunner(updateDB bool, filter, version string, concurrency int, config *config.Config) (*Runner, error) {
 	gologger.Info().Msgf("Loading takeit fingerprints... (version: %s)", version)
-	detector, err := detect.NewDetector(update, config)
+	detector, err := detect.NewDetector(updateDB, config)
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{detector: detector, filter: filter, version: version}, nil
+	return &Runner{detector: detector, filter: filter, version: version, concurrency: concurrency}, nil
+}
+
+func (r *Runner) Run(domains <-chan string) {
+	var wg sync.WaitGroup
+	for i := 0; i < r.concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for domain := range domains {
+				r.ProcessDomain(domain)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func (r *Runner) ProcessDomain(domain string) {

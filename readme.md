@@ -56,7 +56,9 @@ For those who prefer building from source:
           cat domains.txt | takeit [flags]
         
         Flags:
-          -update        Update fingerprint database
+          -update        Update takeit version
+          -update-db     Update fingerprint database
+          -t             Number of threads (default 10)
           -v             Show version
           -h             Show help
           -f             Filter output ( potential )
@@ -77,6 +79,11 @@ TakeIt is designed to be simple yet powerful. Here’s how you can use it:
 
 - **Update the fingerprint database**:
   ```bash
+  ./takeit -update-db
+  ```
+
+- **Update the tool**:
+  ```bash
   ./takeit -update
   ```
 
@@ -87,7 +94,9 @@ TakeIt is designed to be simple yet powerful. Here’s how you can use it:
 
 ### Command-Line Flags
 ```text
-  -update        Update the fingerprint database
+  -update        Update takeit version
+  -update-db     Update fingerprint database
+  -t             Number of threads (default 10)
   -v             Show the version of TakeIt
   -h             Display help information
   -f             Filter output to show only potential matches
@@ -109,7 +118,7 @@ TakeIt is designed to be simple yet powerful. Here’s how you can use it:
 
 3. **Update fingerprints and scan**:
    ```bash
-   ./takeit -update
+   ./takeit -update-db
    ./takeit example.com
    ```
 

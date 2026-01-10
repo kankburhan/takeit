@@ -15,15 +15,17 @@ import (
 	"github.com/kankburhan/takeit/internal/utils"
 	"github.com/kankburhan/takeit/pkg/config"
 	"github.com/projectdiscovery/gologger"
+	"github.com/schollz/progressbar/v3"
 )
 
 type Service struct {
-	Service    string   `json:"service"`
-	CNAME      []string `json:"cname"`
-	NXDomain   bool     `json:"nxdomain"`
-	HTTPStatus int      `json:"http_status"` // 0 means no HTTP check required
-	Status     string   `json:"status"`
-	Vulnerable bool     `json:"vulnerable"`
+	Service     string   `json:"service"`
+	CNAME       []string `json:"cname"`
+	NXDomain    bool     `json:"nxdomain"`
+	HTTPStatus  int      `json:"http_status"` // 0 means no HTTP check required
+	Status      string   `json:"status"`
+	Vulnerable  bool     `json:"vulnerable"`
+	Fingerprint string   `json:"fingerprint"`
 }
 
 type Detector struct {
@@ -85,13 +87,22 @@ func downloadFingerprints(path string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
 	out, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
+	bar := progressbar.DefaultBytes(
+		resp.ContentLength,
+		"downloading",
+	)
+
+	_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
 	return err
 }
 
@@ -119,6 +130,7 @@ func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
 		nxDomainResult  bool
 		httpChecked     bool
 		httpStatus      int
+		httpBody        string
 	)
 
 	for _, service := range d.services {
@@ -151,18 +163,23 @@ func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
 			}
 		}
 
-		// Check HTTP status code if required
-		if service.HTTPStatus != 0 {
+		// Check HTTP status code and fingerprint if required
+		if service.HTTPStatus != 0 || service.Fingerprint != "" {
 			if !httpChecked {
-				status, err := fetchHTTPStatus(domain)
+				status, body, err := fetchHTTPStatus(domain)
 				if err != nil {
 					continue
 				}
 				httpStatus = status
+				httpBody = body
 				httpChecked = true
 			}
 
-			if httpStatus != service.HTTPStatus {
+			if service.HTTPStatus != 0 && httpStatus != service.HTTPStatus {
+				continue
+			}
+
+			if service.Fingerprint != "" && !strings.Contains(httpBody, service.Fingerprint) {
 				continue
 			}
 		}
@@ -176,8 +193,8 @@ func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
 	return false, cname, nil
 }
 
-// Simplified HTTP check (status code only)
-func fetchHTTPStatus(domain string) (int, error) {
+// Simplified HTTP check (status code and body)
+func fetchHTTPStatus(domain string) (int, string, error) {
 	client := utils.GetHTTPClient()
 
 	// Try both HTTP and HTTPS
@@ -186,10 +203,14 @@ func fetchHTTPStatus(domain string) (int, error) {
 		resp, err := client.Get(url)
 		if err == nil {
 			defer resp.Body.Close()
-			return resp.StatusCode, nil
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return resp.StatusCode, "", nil // Return empty body on read error but valid status
+			}
+			return resp.StatusCode, string(bodyBytes), nil
 		}
 	}
-	return 0, fmt.Errorf("all HTTP(S) requests failed")
+	return 0, "", fmt.Errorf("all HTTP(S) requests failed")
 }
 
 func isNXDomain(domain string) (bool, error) {
