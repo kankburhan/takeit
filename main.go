@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/kankburhan/takeit/internal/runner"
 	"github.com/kankburhan/takeit/pkg/config"
@@ -51,9 +52,16 @@ func main() {
 	filterFlag := flag.String("f", "", "Filter output (e.g., potential)")
 	flag.Parse()
 
-	// Get version from environment variable or build flag
+	// Get version from environment variable
 	if v := os.Getenv("TAKEIT_VERSION"); v != "" {
 		version = v
+	}
+
+	// Try to get version from build info if it's still dev
+	if version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" {
+			version = info.Main.Version
+		}
 	}
 
 	// Handle tool update
