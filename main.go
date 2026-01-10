@@ -59,8 +59,18 @@ func main() {
 
 	// Try to get version from build info if it's still dev
 	if version == "dev" {
-		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" {
-			version = info.Main.Version
+		if info, ok := debug.ReadBuildInfo(); ok {
+			if info.Main.Version != "(devel)" {
+				version = info.Main.Version
+			} else {
+				// Fallback to commit hash for dev builds
+				for _, setting := range info.Settings {
+					if setting.Key == "vcs.revision" && len(setting.Value) >= 7 {
+						version = "dev-" + setting.Value[:7]
+						break
+					}
+				}
+			}
 		}
 	}
 
@@ -72,7 +82,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Check for updates in background
 	go func() {
 		if release, err := update.CheckForUpdate(version); err == nil && release != nil {
 			update.ShowUpdateMessage(release.TagName)
