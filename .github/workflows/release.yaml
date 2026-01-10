@@ -7,6 +7,7 @@ on:
 
 jobs:
   release:
+    environment: prd
     runs-on: ubuntu-latest
 
     steps:
