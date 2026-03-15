@@ -22,20 +22,36 @@ type Service struct {
 	Service     string   `json:"service"`
 	CNAME       []string `json:"cname"`
 	NXDomain    bool     `json:"nxdomain"`
-	HTTPStatus  int      `json:"http_status"` // 0 means no HTTP check required
+	HTTPStatus  int      `json:"http_status"`
 	Status      string   `json:"status"`
 	Vulnerable  bool     `json:"vulnerable"`
 	Fingerprint string   `json:"fingerprint"`
 }
 
+// Result holds detailed information about a subdomain check
+type Result struct {
+	Domain      string   `json:"domain"`
+	CNAME       string   `json:"cname"`
+	CNAMEChain  []string `json:"cname_chain,omitempty"`
+	Vulnerable  bool     `json:"vulnerable"`
+	Service     string   `json:"service,omitempty"`
+	Fingerprint string   `json:"fingerprint,omitempty"`
+	IsWildcard  bool     `json:"is_wildcard,omitempty"`
+	HTTPStatus  int      `json:"http_status,omitempty"`
+	Error       string   `json:"error,omitempty"`
+}
+
 type Detector struct {
 	services []Service
+	config   *config.Config
 }
 
 const (
 	fingerprintsURL   = "https://raw.githubusercontent.com/EdOverflow/can-i-take-over-xyz/master/fingerprints.json"
 	localFingerprints = "fingerprints.json"
 	configDir         = ".config/takeit"
+	maxBodySize       = 1 << 20 // 1MB limit for HTTP body
+	maxCNAMEDepth     = 10      // max CNAME chain depth
 )
 
 func NewDetector(update bool, config *config.Config) (*Detector, error) {
@@ -57,12 +73,18 @@ func NewDetector(update bool, config *config.Config) (*Detector, error) {
 
 	utils.InitHTTPClient(time.Duration(config.Timeout)*time.Second, config.UserAgent)
 
+	if config.Resolver != "" {
+		utils.SetCustomResolver(config.Resolver)
+	}
+
 	services, err := loadFingerprints(cachePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fingerprints: %v", err)
 	}
 
-	return &Detector{services: services}, nil
+	gologger.Info().Msgf("Loaded %d fingerprints", len(services))
+
+	return &Detector{services: services, config: config}, nil
 }
 
 func createConfigDir() error {
@@ -118,12 +140,64 @@ func loadFingerprints(path string) ([]Service, error) {
 	return services, err
 }
 
-func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
-	cname, err := net.LookupCNAME(domain)
-	if err != nil {
-		return false, "", fmt.Errorf("CNAME lookup failed for %s: %v", domain, err)
+// resolveCNAMEChain follows the full CNAME chain for a domain
+func resolveCNAMEChain(domain string) []string {
+	var chain []string
+	seen := make(map[string]bool)
+	current := domain
+
+	for i := 0; i < maxCNAMEDepth; i++ {
+		cname, err := net.LookupCNAME(current)
+		if err != nil {
+			break
+		}
+		cname = strings.TrimSuffix(cname, ".")
+		if cname == current || seen[cname] {
+			break // avoid loops
+		}
+		seen[cname] = true
+		chain = append(chain, cname)
+		current = cname
 	}
-	cname = strings.TrimSuffix(cname, ".")
+	return chain
+}
+
+// detectWildcard checks if the parent domain has wildcard DNS
+func detectWildcard(domain string) bool {
+	parts := strings.SplitN(domain, ".", 2)
+	if len(parts) < 2 {
+		return false
+	}
+	parentDomain := parts[1]
+
+	// Query a random non-existent subdomain
+	randomSub := fmt.Sprintf("takeit-wildcard-test-7f3a2b.%s", parentDomain)
+	addrs, err := net.LookupHost(randomSub)
+	if err != nil {
+		return false
+	}
+	return len(addrs) > 0
+}
+
+// CheckSubdomain checks a domain for potential subdomain takeover
+func (d *Detector) CheckSubdomain(domain string) Result {
+	result := Result{Domain: domain}
+
+	// Resolve full CNAME chain
+	chain := resolveCNAMEChain(domain)
+	if len(chain) > 0 {
+		result.CNAME = chain[len(chain)-1]
+		result.CNAMEChain = chain
+	} else {
+		// No CNAME found - could still check for dangling A records
+		result.CNAME = domain
+	}
+
+	// Check for wildcard DNS (potential false positive source)
+	if detectWildcard(domain) {
+		result.IsWildcard = true
+		gologger.Debug().Msgf("Wildcard DNS detected for parent of %s", domain)
+	}
 
 	var (
 		nxDomainChecked bool
@@ -134,11 +208,23 @@ func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
 	)
 
 	for _, service := range d.services {
-		// Check CNAME patterns
+		// Check CNAME patterns against entire chain
 		cnameMatched := false
 		for _, pattern := range service.CNAME {
-			if strings.HasSuffix(cname, pattern) {
+			patternLower := strings.ToLower(pattern)
+			// Check final CNAME
+			if strings.HasSuffix(strings.ToLower(result.CNAME), patternLower) {
 				cnameMatched = true
+				break
+			}
+			// Also check intermediate CNAME chain entries
+			for _, c := range chain {
+				if strings.HasSuffix(strings.ToLower(c), patternLower) {
+					cnameMatched = true
+					break
+				}
+			}
+			if cnameMatched {
 				break
 			}
 		}
@@ -146,14 +232,18 @@ func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
 			continue
 		}
 
-		// Check NXDOMAIN condition
+		// Check NXDOMAIN condition using net.LookupHost (correct method)
 		if service.NXDomain {
 			if !nxDomainChecked {
-				nx, err := isNXDomain(domain)
-				gologger.Debug().Msgf("NXDOMAIN result for %s: %v (error: %v)", domain, nx, err)
-
+				nx, err := isNXDomain(result.CNAME)
+				gologger.Debug().Msgf("NXDOMAIN check for %s (CNAME: %s): %v (err: %v)", domain, result.CNAME, nx, err)
 				if err != nil {
-					continue
+					// Retry once on transient DNS errors
+					time.Sleep(500 * time.Millisecond)
+					nx, err = isNXDomain(result.CNAME)
+					if err != nil {
+						continue
+					}
 				}
 				nxDomainResult = nx
 				nxDomainChecked = true
@@ -166,9 +256,14 @@ func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
 		// Check HTTP status code and fingerprint if required
 		if service.HTTPStatus != 0 || service.Fingerprint != "" {
 			if !httpChecked {
-				status, body, err := fetchHTTPStatus(domain)
+				status, body, err := d.fetchHTTPStatus(domain)
 				if err != nil {
-					continue
+					// Retry once
+					time.Sleep(500 * time.Millisecond)
+					status, body, err = d.fetchHTTPStatus(domain)
+					if err != nil {
+						continue
+					}
 				}
 				httpStatus = status
 				httpBody = body
@@ -179,42 +274,55 @@ func (d *Detector) CheckSubdomain(domain string) (bool, string, error) {
 				continue
 			}
 
-			if service.Fingerprint != "" && !strings.Contains(httpBody, service.Fingerprint) {
+			if service.Fingerprint != "" && !strings.Contains(
+				strings.ToLower(httpBody),
+				strings.ToLower(service.Fingerprint),
+			) {
 				continue
 			}
 		}
 
-		// If all conditions are met, check vulnerability
+		// All conditions met
 		if service.Vulnerable {
-			return true, cname, nil
+			result.Vulnerable = true
+			result.Service = service.Service
+			result.Fingerprint = service.Fingerprint
+			result.HTTPStatus = httpStatus
+			return result
 		}
 	}
 
-	return false, cname, nil
+	return result
 }
 
-// Simplified HTTP check (status code and body)
-func fetchHTTPStatus(domain string) (int, string, error) {
+// fetchHTTPStatus fetches HTTP status and body (limited to maxBodySize)
+func (d *Detector) fetchHTTPStatus(domain string) (int, string, error) {
 	client := utils.GetHTTPClient()
 
-	// Try both HTTP and HTTPS
-	urls := []string{fmt.Sprintf("http://%s", domain), fmt.Sprintf("https://%s", domain)}
+	urls := []string{
+		fmt.Sprintf("https://%s", domain),
+		fmt.Sprintf("http://%s", domain),
+	}
+
 	for _, url := range urls {
 		resp, err := client.Get(url)
-		if err == nil {
-			defer resp.Body.Close()
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return resp.StatusCode, "", nil // Return empty body on read error but valid status
-			}
-			return resp.StatusCode, string(bodyBytes), nil
+		if err != nil {
+			continue
 		}
+		// Read body with size limit to prevent OOM
+		bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBodySize))
+		resp.Body.Close() // close immediately, not defer in loop
+		if readErr != nil {
+			return resp.StatusCode, "", nil
+		}
+		return resp.StatusCode, string(bodyBytes), nil
 	}
-	return 0, "", fmt.Errorf("all HTTP(S) requests failed")
+	return 0, "", fmt.Errorf("all HTTP(S) requests failed for %s", domain)
 }
 
+// isNXDomain checks if a domain resolves to NXDOMAIN using net.LookupHost
 func isNXDomain(domain string) (bool, error) {
-	_, err := net.LookupCNAME(domain)
+	_, err := net.LookupHost(domain)
 	if err != nil {
 		var dnsErr *net.DNSError
 		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {

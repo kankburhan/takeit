@@ -1,6 +1,9 @@
 package runner
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/kankburhan/takeit/internal/detect"
@@ -13,15 +16,39 @@ type Runner struct {
 	filter      string
 	version     string
 	concurrency int
+	config      *config.Config
+	outputFile  *os.File
+	mu          sync.Mutex // protects outputFile writes
 }
 
-func NewRunner(updateDB bool, filter, version string, concurrency int, config *config.Config) (*Runner, error) {
-	gologger.Info().Msgf("Loading takeit fingerprints... (version: %s)", version)
-	detector, err := detect.NewDetector(updateDB, config)
+func NewRunner(updateDB bool, filter, version string, concurrency int, cfg *config.Config) (*Runner, error) {
+	if !cfg.Silent {
+		gologger.Info().Msgf("Loading takeit fingerprints... (version: %s)", version)
+	}
+
+	detector, err := detect.NewDetector(updateDB, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{detector: detector, filter: filter, version: version, concurrency: concurrency}, nil
+
+	r := &Runner{
+		detector:    detector,
+		filter:      filter,
+		version:     version,
+		concurrency: concurrency,
+		config:      cfg,
+	}
+
+	// Open output file if specified
+	if cfg.Output != "" {
+		f, err := os.Create(cfg.Output)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create output file: %v", err)
+		}
+		r.outputFile = f
+	}
+
+	return r, nil
 }
 
 func (r *Runner) Run(domains <-chan string) {
@@ -36,32 +63,75 @@ func (r *Runner) Run(domains <-chan string) {
 		}()
 	}
 	wg.Wait()
+
+	if r.outputFile != nil {
+		r.outputFile.Close()
+	}
 }
 
 func (r *Runner) ProcessDomain(domain string) {
-	vulnerable, cname, err := r.detector.CheckSubdomain(domain)
+	result := r.detector.CheckSubdomain(domain)
 
-	if err != nil {
-		if r.filter == "" {
-			r.logDomainDetails(domain, cname)
-			gologger.Error().Msgf("Error checking %s: %s", domain, err)
-		}
+	// JSON output mode
+	if r.config.JSONOut {
+		r.outputJSON(result)
 		return
 	}
 
-	// Only show details for vulnerable domains or when no filter is applied
-	if vulnerable || r.filter == "" {
-		r.logDomainDetails(domain, cname)
+	// Filter mode: only show potential takeovers
+	if r.filter != "" && !result.Vulnerable {
+		return
 	}
 
-	if vulnerable {
-		gologger.Warning().Msgf("Potential subdomain takeover detected: %s", domain)
+	if !r.config.Silent {
+		r.logResult(result)
+	}
+
+	if result.Vulnerable {
+		msg := fmt.Sprintf("[VULNERABLE] %s -> %s [Service: %s]", result.Domain, result.CNAME, result.Service)
+		if result.IsWildcard {
+			msg += " [WILDCARD - verify manually]"
+		}
+		gologger.Warning().Msg(msg)
+		r.writeOutput(msg)
 	} else if r.filter == "" {
-		gologger.Info().Msgf("No takeover detected for: %s", domain)
+		if !r.config.Silent {
+			gologger.Info().Msgf("[SAFE] %s -> %s", result.Domain, result.CNAME)
+		}
 	}
 }
 
-func (r *Runner) logDomainDetails(domain, cname string) {
-	gologger.Info().Msgf("Checking domain: %s", domain)
-	gologger.Info().Msgf("Resolved CNAME for %s: %s", domain, cname)
+func (r *Runner) logResult(result detect.Result) {
+	gologger.Info().Msgf("Checking: %s", result.Domain)
+	if result.CNAME != result.Domain {
+		gologger.Info().Msgf("  CNAME: %s", result.CNAME)
+	}
+	if len(result.CNAMEChain) > 1 {
+		gologger.Debug().Msgf("  CNAME chain: %v", result.CNAMEChain)
+	}
+}
+
+func (r *Runner) outputJSON(result detect.Result) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return
+	}
+	line := string(data)
+	fmt.Println(line)
+
+	if r.outputFile != nil {
+		fmt.Fprintln(r.outputFile, line)
+	}
+}
+
+func (r *Runner) writeOutput(line string) {
+	if r.outputFile == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	fmt.Fprintln(r.outputFile, line)
 }
