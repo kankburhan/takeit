@@ -103,7 +103,8 @@ func fileExists(path string) bool {
 }
 
 func downloadFingerprints(path string) error {
-	resp, err := http.Get(fingerprintsURL)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(fingerprintsURL)
 	if err != nil {
 		return err
 	}
@@ -119,12 +120,24 @@ func downloadFingerprints(path string) error {
 	}
 	defer out.Close()
 
+	// If Content-Length is unknown (-1), just copy without progress bar
+	if resp.ContentLength <= 0 {
+		gologger.Info().Msg("Downloading fingerprints...")
+		written, err := io.Copy(out, resp.Body)
+		if err != nil {
+			return err
+		}
+		gologger.Info().Msgf("Downloaded %d bytes", written)
+		return nil
+	}
+
 	bar := progressbar.DefaultBytes(
 		resp.ContentLength,
 		"downloading",
 	)
 
 	_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
+	fmt.Println() // newline after progress bar
 	return err
 }
 
